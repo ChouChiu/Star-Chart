@@ -11,6 +11,12 @@ export interface StarsResponse {
   partial: boolean;
 }
 
+export function extractGitHubStatus(err: unknown): number {
+  const message = err instanceof Error ? err.message : String(err);
+  const match = message.match(/^GitHub API (\d{3}):/);
+  return match ? Number.parseInt(match[1]!, 10) : 500;
+}
+
 async function fetchPage(
   owner: string,
   repo: string,
@@ -109,6 +115,7 @@ export async function GET(req: Request): Promise<Response> {
     return Response.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return Response.json({ error: message }, { status: 500 });
+    const status = extractGitHubStatus(err);
+    return Response.json({ error: message }, { status });
   }
 }

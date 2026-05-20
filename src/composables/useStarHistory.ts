@@ -34,7 +34,14 @@ export function useStarHistory(token: Ref<string>) {
       const res = await fetch(`/api/stars?${params.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Request failed" }));
-        throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+        const msg = (body as { error?: string }).error ?? `HTTP ${res.status}`;
+        if (res.status === 403) {
+          const hint = token.value
+            ? "Your token may have insufficient permissions."
+            : "Add a personal access token to increase the limit.";
+          throw new Error(`[token-required] GitHub API rate limited. ${hint}`);
+        }
+        throw new Error(msg);
       }
 
       const data = (await res.json()) as StarsApiResponse;

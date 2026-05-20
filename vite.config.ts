@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import { fetchStarHistory } from "./api/stars";
+import { extractGitHubStatus, fetchStarHistory } from "./api/stars";
 
 export default defineConfig({
   plugins: [
@@ -31,9 +31,16 @@ export default defineConfig({
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify(data));
           } catch (err) {
-            console.error("[api-routes] error:", err);
+            const status = extractGitHubStatus(err);
             const message = err instanceof Error ? err.message : "Unknown error";
-            res.statusCode = 500;
+
+            if (status === 403) {
+              console.warn("[api-routes] GitHub API rate limited — add a token to increase the limit.");
+            } else {
+              console.error("[api-routes] error:", err);
+            }
+
+            res.statusCode = status;
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({ error: message }));
           }
