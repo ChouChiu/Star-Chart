@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "provider": "ollama",
+  "model": "nomic-embed-text",
+  "dim": 768,
+  "updatedAt": "2026-05-20T13:22:11.819Z"
+}
