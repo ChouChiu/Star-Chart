@@ -22,57 +22,36 @@ function submit() {
 </script>
 
 <template>
-  <div class="repo-input">
+  <var-space direction="column" size="4">
     <div class="input-row">
-      <input
+      <var-input
         v-model="input"
-        class="repo-field"
         placeholder="owner/repo  or  https://github.com/owner/repo"
+        clearable
+        size="small"
+        variant="outlined"
+        class="repo-field"
         @keydown.enter="submit"
       />
-      <button class="add-btn" @click="submit">Add</button>
+      <var-button type="primary" size="small" @click="submit">Add</var-button>
     </div>
     <p v-if="error" class="input-error">{{ error }}</p>
-  </div>
+  </var-space>
 </template>
 
 <style scoped>
-.repo-input {
-  margin-bottom: 12px;
-}
 .input-row {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 .repo-field {
   flex: 1;
   max-width: 480px;
-  padding: 8px 12px;
-  font-family: monospace;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  outline: none;
-}
-.repo-field:focus {
-  border-color: #2563eb;
-}
-.add-btn {
-  padding: 8px 20px;
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.add-btn:hover {
-  background: #1d4ed8;
 }
 .input-error {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #dc2626;
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+  margin: 0;
 }
 </style>

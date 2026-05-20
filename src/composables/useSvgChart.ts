@@ -94,8 +94,7 @@ export function useSvgChart(
   const svg = computed(() => {
     if (repos.value.length === 0) {
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%">
-        <rect width="${W}" height="${H}" fill="#fafafa" rx="8"/>
-        <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="16">
+        <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="rgba(255,255,255,0.38)" font-family="sans-serif" font-size="16">
           Enter a GitHub repo to get started
         </text>
       </svg>`;
@@ -130,14 +129,11 @@ export function useSvgChart(
 
     let svgContent = "";
 
-    // Background
-    svgContent += `<rect width="${W}" height="${H}" fill="#fff" rx="4"/>`;
-
     // Y-axis horizontal grid lines + labels
     for (const tick of yTickValues) {
       const y = yForCount(tick);
-      svgContent += `<line x1="${MARGIN.left}" y1="${y}" x2="${W - MARGIN.right}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>`;
-      svgContent += `<text x="${MARGIN.left - 8}" y="${y + 4}" text-anchor="end" fill="#666" font-family="sans-serif" font-size="11">${formatNumber(tick)}</text>`;
+      svgContent += `<line x1="${MARGIN.left}" y1="${y}" x2="${W - MARGIN.right}" y2="${y}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`;
+      svgContent += `<text x="${MARGIN.left - 8}" y="${y + 4}" text-anchor="end" fill="rgba(255,255,255,0.6)" font-family="sans-serif" font-size="11">${formatNumber(tick)}</text>`;
     }
 
     // X-axis labels (dates) — skip if too close to previous
@@ -149,13 +145,13 @@ export function useSvgChart(
       const x = xForDate(date);
       // always render the last tick, otherwise enforce min gap
       if (date !== lastTick && x - prevX < MIN_LABEL_GAP) continue;
-      svgContent += `<text x="${x}" y="${labelY}" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="11">${formatDate(date)}</text>`;
+      svgContent += `<text x="${x}" y="${labelY}" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="sans-serif" font-size="11">${formatDate(date)}</text>`;
       prevX = x;
     }
 
     // Axes
-    svgContent += `<line x1="${MARGIN.left}" y1="${MARGIN.top}" x2="${MARGIN.left}" y2="${MARGIN.top + CHART_H}" stroke="#333" stroke-width="1.5"/>`;
-    svgContent += `<line x1="${MARGIN.left}" y1="${MARGIN.top + CHART_H}" x2="${W - MARGIN.right}" y2="${MARGIN.top + CHART_H}" stroke="#333" stroke-width="1.5"/>`;
+    svgContent += `<line x1="${MARGIN.left}" y1="${MARGIN.top}" x2="${MARGIN.left}" y2="${MARGIN.top + CHART_H}" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>`;
+    svgContent += `<line x1="${MARGIN.left}" y1="${MARGIN.top + CHART_H}" x2="${W - MARGIN.right}" y2="${MARGIN.top + CHART_H}" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>`;
 
     // --- data series ---
     if (chartType.value === "bar") {
@@ -202,7 +198,7 @@ export function useSvgChart(
       const repo = repos.value[ri]!;
       const color = COLORS[ri % COLORS.length]!;
       svgContent += `<line x1="${legendX}" y1="18" x2="${legendX + 20}" y2="18" stroke="${color}" stroke-width="2.5"/>`;
-      svgContent += `<text x="${legendX + 26}" y="22" fill="#333" font-family="sans-serif" font-size="12">${repo.fullName}</text>`;
+      svgContent += `<text x="${legendX + 26}" y="22" fill="rgba(255,255,255,0.87)" font-family="sans-serif" font-size="12">${repo.fullName}</text>`;
       legendX += repo.fullName.length * 7 + 60;
     }
 

@@ -18,6 +18,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@varlet/ui": "^3.17.0",
     "vue": "^3.5.34"
   }
 }

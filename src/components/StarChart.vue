@@ -24,171 +24,149 @@ function tokenMessage(error: string): string {
 </script>
 
 <template>
-  <div class="star-chart">
-    <!-- Repo list -->
-    <div v-if="repos.length > 0" class="repo-list">
-      <div v-for="repo in repos" :key="repo.fullName" class="repo-tag">
-        <span class="repo-name">{{ repo.fullName }}</span>
-        <span v-if="repo.error?.startsWith('[token-required]')" class="repo-status token-required" :title="tokenMessage(repo.error)">🔑 token</span>
-        <span v-else-if="repo.error" class="repo-status error" :title="repo.error">error</span>
-        <span v-else-if="repo.loading" class="repo-status loading" />
-        <span v-else class="repo-status ok">{{ repo.stars.length > 0 ? repo.stars[repo.stars.length - 1]!.count : 0 }} ★</span>
-        <button class="repo-remove" @click="emit('remove', repo.fullName)" title="Remove">✕</button>
-      </div>
-    </div>
+  <var-space direction="column" size="12">
+    <!-- Repo chips -->
+    <var-space v-if="repos.length > 0" :size="[8, 8]" wrap>
+      <var-chip
+        v-for="repo in repos"
+        :key="repo.fullName"
+        size="small"
+        closeable
+        @close="emit('remove', repo.fullName)"
+      >
+        <var-space size="6" inline>
+          <code class="repo-name">{{ repo.fullName }}</code>
+          <span
+            v-if="repo.error?.startsWith('[token-required]')"
+            class="chip-status token-required"
+            :title="tokenMessage(repo.error)"
+          >
+            🔑
+          </span>
+          <span v-else-if="repo.error" class="chip-status error" :title="repo.error">!</span>
+          <span v-else-if="repo.loading" class="chip-spinner" />
+          <span v-else class="chip-status ok">
+            {{ repo.stars.length > 0 ? repo.stars[repo.stars.length - 1]!.count : 0 }} ★
+          </span>
+        </var-space>
+      </var-chip>
+    </var-space>
 
     <!-- Token prompt -->
-    <div v-if="anyTokenRequired" class="token-prompt">
-      ⚠️ GitHub API rate limit reached. Add a
-      <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">personal access token</a>
-      (no scopes needed for public repos).
-    </div>
+    <var-paper v-if="anyTokenRequired" :elevation="0" class="token-prompt">
+      <var-space size="4" inline>
+        <span>⚠️</span>
+        <span>
+          GitHub API rate limit reached. Add a
+          <var-link
+            type="primary"
+            href="https://github.com/settings/tokens"
+            target="_blank"
+            rel="noopener"
+            underline="always"
+          >
+            personal access token
+          </var-link>
+          (no scopes needed for public repos).
+        </span>
+      </var-space>
+    </var-paper>
 
     <!-- Chart type toggle -->
     <div v-if="showToggle" class="chart-controls">
-      <label class="toggle-label">
-        <input
-          type="checkbox"
-          :checked="chartType === 'bar'"
-          @change="emit('update:chartType', chartType === 'bar' ? 'line' : 'bar')"
+      <var-space size="8" inline>
+        <var-switch
+          :model-value="chartType === 'bar'"
+          size="20"
+          @update:model-value="
+            emit('update:chartType', $event ? 'bar' : 'line')
+          "
         />
-        Bar chart
-      </label>
+        <span class="toggle-label">Bar chart</span>
+      </var-space>
     </div>
 
     <!-- SVG chart -->
     <div class="chart-container" :class="{ loading: anyLoading }">
-      <div v-if="anyLoading" class="chart-loading-overlay">
-        <span class="chart-loading-spinner" />
-        <span class="chart-loading-text">Loading star history…</span>
-      </div>
-      <div v-html="svg"></div>
+      <var-loading
+        v-if="anyLoading"
+        type="circle"
+        description="Loading star history…"
+        class="chart-loading-overlay"
+      />
+      <div v-html="svg" class="chart-svg"></div>
     </div>
-  </div>
+  </var-space>
 </template>
 
 <style scoped>
-.star-chart {
-  margin-top: 16px;
-}
-.repo-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.repo-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: #f0f0f0;
-  border-radius: 4px;
-  font-size: 13px;
-}
 .repo-name {
   font-family: monospace;
-  color: #333;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
 }
-.repo-status {
-  font-size: 11px;
+.chip-status {
+  font-size: var(--font-size-xs);
 }
-.repo-status.loading {
+.chip-status.error {
+  color: var(--color-danger);
+  cursor: help;
+  font-weight: 700;
+}
+.chip-status.token-required {
+  color: var(--color-warning);
+  cursor: help;
+}
+.chip-status.ok {
+  color: var(--color-success);
+  font-weight: 600;
+}
+.chip-spinner {
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid #d0d0d0;
-  border-top-color: #2563eb;
+  border: 2px solid var(--color-surface-container-high);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   vertical-align: middle;
 }
-.repo-status.error {
-  color: #dc2626;
-  cursor: help;
-}
-.repo-status.token-required {
-  color: #ea580c;
-  cursor: help;
-  font-weight: 600;
-}
-.repo-status.ok {
-  color: #16a34a;
-  font-weight: 600;
-}
-.repo-remove {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: #999;
-  font-size: 13px;
-  padding: 0 2px;
-  line-height: 1;
-}
-.repo-remove:hover {
-  color: #dc2626;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .token-prompt {
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #9a3412;
-}
-.token-prompt a {
-  color: #2563eb;
-  text-decoration: underline;
+  padding: 10px 14px;
+  background: var(--color-warning-container);
+  color: var(--color-on-warning-container);
+  border-radius: 8px;
+  font-size: var(--font-size-sm);
 }
 .chart-controls {
-  margin-bottom: 12px;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
 }
 .toggle-label {
-  cursor: pointer;
   user-select: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 .chart-container {
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: #fff;
+  border: 1px solid var(--color-outline);
+  border-radius: 12px;
+  background: var(--color-surface-container);
   overflow: hidden;
   position: relative;
 }
-.chart-container.loading :deep(svg) {
+.chart-container.loading .chart-svg {
   opacity: 0.3;
 }
 .chart-loading-overlay {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  z-index: 1;
 }
-.chart-loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e0e0e0;
-  border-top-color: #2563eb;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-.chart-loading-text {
-  font-size: 14px;
-  color: #666;
-  font-family: sans-serif;
-}
-.chart-container :deep(svg) {
+.chart-svg :deep(svg) {
   display: block;
   width: 100%;
   height: auto;
