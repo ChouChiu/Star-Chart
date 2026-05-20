@@ -1,72 +1,90 @@
 import { computed, type Ref } from "vue";
 import type { ChartType, RepoData } from "../types";
 
-const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2"];
+// -- style constants (clean, rectilinear — no xkcd) --
 
-const MARGIN = { top: 40, right: 60, bottom: 70, left: 70 };
+const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2"];
+const MARGIN = { top: 50, right: 30, bottom: 50, left: 70 };
 const W = 900;
-const H = 500;
+const H = 600; // 3:2 ratio like star-history
 const CHART_W = W - MARGIN.left - MARGIN.right;
 const CHART_H = H - MARGIN.top - MARGIN.bottom;
 
+// -- formatters --
+
 function formatNumber(n: number): string {
-  if (n >= 1000) {
-    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  }
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
 }
 
 function formatDate(d: string): string {
-  // d is YYYY-MM-DD
   const parts = d.split("-");
   if (parts.length !== 3) return d;
-  return `${parts[1]}/${parts[2]}`; // MM/DD
+  return `${parts[2]}/${parts[1]}/${parts[0]!.slice(2)}`; // dd/mm/yy
 }
 
-function buildScales(repos: RepoData[], allDates: string[]) {
-  const maxStars =
-    repos.length > 0
-      ? Math.max(...repos.map((r) => (r.stars.length > 0 ? r.stars[r.stars.length - 1]!.count : 0)))
-      : 0;
+// -- scales --
 
-  const paddedMax = maxStars === 0 ? 10 : Math.ceil(maxStars * 1.1);
+function xTickDates(dates: string[]): string[] {
+  // Produce ~5 nice date ticks across the range
+  if (dates.length === 0) return [];
+  const first = new Date(dates[0]!).getTime();
+  const last = new Date(dates[dates.length - 1]!).getTime();
+  const span = last - first;
+  if (span <= 0) return [dates[0]!];
 
-  const xScale = (dateIndex: number): number => {
-    if (allDates.length <= 1) return MARGIN.left + CHART_W / 2;
-    return MARGIN.left + (dateIndex / (allDates.length - 1)) * CHART_W;
-  };
+  // pick a nice step: 1mo, 3mo, 6mo, 1yr, 2yr
+  const DAY = 86_400_000;
+  const steps = [30 * DAY, 90 * DAY, 180 * DAY, 365 * DAY, 730 * DAY];
+  let step = steps[0]!;
+  for (const s of steps) {
+    step = s;
+    if (span / s <= 8) break;
+  }
 
-  const yScale = (count: number): number => {
-    return MARGIN.top + CHART_H - (count / paddedMax) * CHART_H;
-  };
-
-  return { maxStars: paddedMax, xScale, yScale, dateCount: allDates.length };
+  const ticks: string[] = [];
+  let cursor = new Date(dates[0]!).getTime();
+  while (cursor <= last) {
+    // find the closest actual date
+    let best = dates[0]!;
+    for (const d of dates) {
+      const t = new Date(d).getTime();
+      if (Math.abs(t - cursor) < Math.abs(new Date(best).getTime() - cursor)) best = d;
+    }
+    if (!ticks.includes(best)) ticks.push(best);
+    cursor += step;
+  }
+  // only add last date if far enough from previous tick
+  const lastDate = dates[dates.length - 1]!;
+  if (ticks[ticks.length - 1] !== lastDate) {
+    const prevMs = new Date(ticks[ticks.length - 1]!).getTime();
+    const lastMs = new Date(lastDate).getTime();
+    if (lastMs - prevMs >= step * 0.4) ticks.push(lastDate);
+  }
+  return ticks;
 }
 
-function yAxisTicks(maxStars: number): number[] {
+function yTicks(maxStars: number): number[] {
   if (maxStars <= 0) return [0];
   const step = niceStep(maxStars, 5);
   const ticks: number[] = [];
-  for (let i = 0; i <= maxStars; i += step) {
-    ticks.push(i);
-  }
-  if (ticks[ticks.length - 1]! < maxStars) {
-    ticks.push(maxStars);
-  }
+  for (let i = 0; i <= maxStars; i += step) ticks.push(i);
+  const last = ticks[ticks.length - 1]!;
+  // only add maxStars if there's enough gap from the last nice tick
+  if (maxStars - last >= step * 0.4) ticks.push(maxStars);
   return ticks;
 }
 
 function niceStep(max: number, targetTicks: number): number {
   const rough = max / targetTicks;
-  const magnitude = 10 ** Math.floor(Math.log10(rough));
-  const residual = rough / magnitude;
-  let nice: number;
-  if (residual <= 1.5) nice = 1;
-  else if (residual <= 3) nice = 2;
-  else if (residual <= 7) nice = 5;
-  else nice = 10;
-  return nice * magnitude;
+  const mag = 10 ** Math.floor(Math.log10(rough));
+  const r = rough / mag;
+  const nice = r <= 1.5 ? 1 : r <= 3 ? 2 : r <= 7 ? 5 : 10;
+  return nice * mag;
 }
+
+// -- main composable --
 
 export function useSvgChart(
   repos: Ref<RepoData[]>,
@@ -77,128 +95,115 @@ export function useSvgChart(
     if (repos.value.length === 0) {
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%">
         <rect width="${W}" height="${H}" fill="#fafafa" rx="8"/>
-        <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#999" font-family="monospace" font-size="16">
+        <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="16">
           Enter a GitHub repo to get started
         </text>
       </svg>`;
     }
 
     const dates = allDates.value;
-    const { maxStars, xScale, yScale } = buildScales(repos.value, dates);
-    const ticks = yAxisTicks(maxStars);
+
+    // --- compute scales from real timestamps ---
+    const firstTs = dates.length > 0 ? new Date(dates[0]!).getTime() : 0;
+    const lastTs = dates.length > 0 ? new Date(dates[dates.length - 1]!).getTime() : 1;
+    const tsSpan = lastTs - firstTs || 1;
+
+    const xForDate = (d: string): number => {
+      const t = new Date(d).getTime();
+      return MARGIN.left + ((t - firstTs) / tsSpan) * CHART_W;
+    };
+
+    const maxStars =
+      repos.value.length > 0
+        ? Math.max(
+            ...repos.value.map((r) =>
+              r.stars.length > 0 ? r.stars[r.stars.length - 1]!.count : 0,
+            ),
+          )
+        : 0;
+    const paddedMax = maxStars === 0 ? 10 : Math.ceil(maxStars * 1.1);
+
+    const yForCount = (c: number): number => MARGIN.top + CHART_H - (c / paddedMax) * CHART_H;
+
+    const yTickValues = yTicks(paddedMax);
+    const xTicks = xTickDates(dates);
 
     let svgContent = "";
 
     // Background
     svgContent += `<rect width="${W}" height="${H}" fill="#fff" rx="4"/>`;
 
-    // Y-axis grid lines + labels
-    for (const tick of ticks) {
-      const y = yScale(tick);
+    // Y-axis horizontal grid lines + labels
+    for (const tick of yTickValues) {
+      const y = yForCount(tick);
       svgContent += `<line x1="${MARGIN.left}" y1="${y}" x2="${W - MARGIN.right}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>`;
-      svgContent += `<text x="${MARGIN.left - 8}" y="${y + 4}" text-anchor="end" fill="#666" font-family="monospace" font-size="11">${formatNumber(tick)}</text>`;
+      svgContent += `<text x="${MARGIN.left - 8}" y="${y + 4}" text-anchor="end" fill="#666" font-family="sans-serif" font-size="11">${formatNumber(tick)}</text>`;
     }
 
-    // X-axis labels (dates) — at most ~8 ticks
-    const dateStep = Math.max(1, Math.floor(dates.length / 8));
-    const labelDates = new Set<string>();
-    for (let i = 0; i < dates.length; i += dateStep) {
-      const date = dates[i]!;
-      labelDates.add(date);
-      const x = xScale(i);
-      svgContent += `<text x="${x}" y="${MARGIN.top + CHART_H + 16}" text-anchor="start" fill="#666" font-family="monospace" font-size="10" transform="rotate(-45, ${x}, ${MARGIN.top + CHART_H + 16})">${formatDate(date)}</text>`;
+    // X-axis labels (dates) — skip if too close to previous
+    const labelY = MARGIN.top + CHART_H + 20;
+    const MIN_LABEL_GAP = 40; // "15/01/24" ≈ 48px at 11px font
+    let prevX = -Infinity;
+    const lastTick = xTicks[xTicks.length - 1];
+    for (const date of xTicks) {
+      const x = xForDate(date);
+      // always render the last tick, otherwise enforce min gap
+      if (date !== lastTick && x - prevX < MIN_LABEL_GAP) continue;
+      svgContent += `<text x="${x}" y="${labelY}" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="11">${formatDate(date)}</text>`;
+      prevX = x;
     }
 
     // Axes
     svgContent += `<line x1="${MARGIN.left}" y1="${MARGIN.top}" x2="${MARGIN.left}" y2="${MARGIN.top + CHART_H}" stroke="#333" stroke-width="1.5"/>`;
     svgContent += `<line x1="${MARGIN.left}" y1="${MARGIN.top + CHART_H}" x2="${W - MARGIN.right}" y2="${MARGIN.top + CHART_H}" stroke="#333" stroke-width="1.5"/>`;
 
-    // Data series
+    // --- data series ---
     if (chartType.value === "bar") {
+      // bar chart — compute bar positions from time scale + 14-day thinning
       const repoCount = repos.value.length;
-      const barGroupWidth = dates.length > 1 ? CHART_W / (dates.length - 1) : CHART_W;
-      const barWidth = Math.max(3, (barGroupWidth * 0.7) / repoCount);
+      const barW = Math.max(4, CHART_W / dates.length / (repoCount + 1));
       const gap = 2;
 
       for (let ri = 0; ri < repoCount; ri++) {
         const repo = repos.value[ri]!;
         const color = COLORS[ri % COLORS.length]!;
-        const dateIndexMap = new Map<string, number>();
-        for (let i = 0; i < dates.length; i++) {
-          dateIndexMap.set(dates[i]!, i);
-        }
-
+        // thin to ~14-day intervals
+        let cursor = firstTs;
+        const DAY14 = 14 * 86_400_000;
         const lastIdx = repo.stars.length - 1;
         for (let si = 0; si < repo.stars.length; si++) {
           const point = repo.stars[si]!;
-          const di = dateIndexMap.get(point.date);
-          if (di === undefined) continue;
-          const x = xScale(di);
-          const barX = x - barGroupWidth * 0.35 + ri * (barWidth + gap);
-          const barY = yScale(point.count);
+          const t = new Date(point.date).getTime();
+          if (t < cursor && si !== 0 && si !== lastIdx) continue;
+          cursor = t + DAY14;
+
+          const cx = xForDate(point.date);
+          const barX = cx - ((barW + gap) * repoCount) / 2 + ri * (barW + gap);
+          const barY = yForCount(point.count);
           const barH = MARGIN.top + CHART_H - barY;
-
-          svgContent += `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barH}" fill="${color}" rx="1"/>`;
-
-          const isLabeled = labelDates.has(point.date) || si === 0 || si === lastIdx;
-          if (isLabeled) {
-            svgContent += `<text x="${barX + barWidth / 2}" y="${barY - 4}" text-anchor="middle" fill="#333" font-family="monospace" font-size="9">${point.count}</text>`;
-          }
+          svgContent += `<rect x="${barX}" y="${barY}" width="${barW}" height="${barH}" fill="${color}" rx="1"/>`;
         }
       }
     } else {
-      // Line chart
+      // line chart — polyline through all points, no dots, no per-point labels
       for (let ri = 0; ri < repos.value.length; ri++) {
         const repo = repos.value[ri]!;
         const color = COLORS[ri % COLORS.length]!;
         if (repo.stars.length === 0) continue;
 
-        const dateIndexMap = new Map<string, number>();
-        for (let i = 0; i < dates.length; i++) {
-          dateIndexMap.set(dates[i]!, i);
-        }
-
-        // Polyline
-        const points = repo.stars
-          .map((p) => {
-            const di = dateIndexMap.get(p.date);
-            if (di === undefined) return null;
-            return `${xScale(di)},${yScale(p.count)}`;
-          })
-          .filter(Boolean)
-          .join(" ");
-
-        if (points) {
-          svgContent += `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
-        }
-
-        // Data points + labels (labels only at tick dates + first/last)
-        const lastIdx = repo.stars.length - 1;
-        for (let si = 0; si < repo.stars.length; si++) {
-          const point = repo.stars[si]!;
-          const di = dateIndexMap.get(point.date);
-          if (di === undefined) continue;
-          const cx = xScale(di);
-          const cy = yScale(point.count);
-
-          svgContent += `<rect x="${cx - 3}" y="${cy - 3}" width="6" height="6" fill="${color}" rx="0"/>`;
-
-          const isLabeled = labelDates.has(point.date) || si === 0 || si === lastIdx;
-          if (isLabeled) {
-            svgContent += `<text x="${cx}" y="${cy - 8}" text-anchor="middle" fill="#333" font-family="monospace" font-size="9">${point.count}</text>`;
-          }
-        }
+        const pts = repo.stars.map((p) => `${xForDate(p.date)},${yForCount(p.count)}`).join(" ");
+        svgContent += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
       }
     }
 
-    // Legend
+    // --- legend (top-left) ---
     let legendX = MARGIN.left;
     for (let ri = 0; ri < repos.value.length; ri++) {
       const repo = repos.value[ri]!;
       const color = COLORS[ri % COLORS.length]!;
-      svgContent += `<rect x="${legendX}" y="10" width="12" height="12" fill="${color}" rx="1"/>`;
-      svgContent += `<text x="${legendX + 16}" y="21" fill="#333" font-family="sans-serif" font-size="12">${repo.fullName}</text>`;
-      legendX += repo.fullName.length * 7 + 48;
+      svgContent += `<line x1="${legendX}" y1="18" x2="${legendX + 20}" y2="18" stroke="${color}" stroke-width="2.5"/>`;
+      svgContent += `<text x="${legendX + 26}" y="22" fill="#333" font-family="sans-serif" font-size="12">${repo.fullName}</text>`;
+      legendX += repo.fullName.length * 7 + 60;
     }
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%">${svgContent}</svg>`;
