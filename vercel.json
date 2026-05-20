@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/*.ts": {
+      "runtime": "bun"
+    }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

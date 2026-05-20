@@ -1,11 +1,16 @@
 {
   "name": "star-chart",
-  "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "biome check src/ api/",
+    "format": "biome check --write src/ api/"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "@types/bun": "latest",
     "@vitejs/plugin-vue": "^6.0.7",
     "vite": "^8.0.13"
   },
