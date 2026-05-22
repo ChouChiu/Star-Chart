@@ -45,11 +45,8 @@ const expanded = ref<string | number | undefined>(undefined);
 :deep(.var-collapse-item) {
   border-radius: 12px;
 }
-:deep(.var-collapse-item__content) {
-  overflow: visible;
-}
 :deep(.var-collapse-item__content-wrap) {
-  padding-top: 8px;
+  padding-top: 10px;
 }
 .token-field {
   max-width: 360px;
