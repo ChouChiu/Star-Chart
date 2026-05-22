@@ -21,7 +21,7 @@ function formatNumber(n: number): string {
 function formatDate(d: string): string {
   const parts = d.split("-");
   if (parts.length !== 3) return d;
-  return `${parts[2]}/${parts[1]}/${parts[0]!.slice(2)}`; // dd/mm/yy
+  return `${parts[2]}/${parts[1]}/${parts[0]?.slice(2)}`; // dd/mm/yy
 }
 
 // -- scales --
@@ -29,25 +29,32 @@ function formatDate(d: string): string {
 function xTickDates(dates: string[]): string[] {
   // Produce ~5 nice date ticks across the range
   if (dates.length === 0) return [];
-  const first = new Date(dates[0]!).getTime();
-  const last = new Date(dates[dates.length - 1]!).getTime();
+  const firstDate = dates[0];
+  const endDate = dates[dates.length - 1];
+  if (!firstDate || !endDate) return [];
+  const first = new Date(firstDate).getTime();
+  const last = new Date(endDate).getTime();
   const span = last - first;
-  if (span <= 0) return [dates[0]!];
+  if (span <= 0) return [firstDate];
 
   // pick a nice step: 1mo, 3mo, 6mo, 1yr, 2yr
   const DAY = 86_400_000;
   const steps = [30 * DAY, 90 * DAY, 180 * DAY, 365 * DAY, 730 * DAY];
-  let step = steps[0]!;
+  const step0 = steps[0];
+  if (step0 === undefined) return [];
+  let step = step0;
   for (const s of steps) {
     step = s;
     if (span / s <= 8) break;
   }
 
   const ticks: string[] = [];
-  let cursor = new Date(dates[0]!).getTime();
+  const startDate = dates[0];
+  if (!startDate) return [];
+  let cursor = new Date(startDate).getTime();
   while (cursor <= last) {
     // find the closest actual date
-    let best = dates[0]!;
+    let best = startDate;
     for (const d of dates) {
       const t = new Date(d).getTime();
       if (Math.abs(t - cursor) < Math.abs(new Date(best).getTime() - cursor)) best = d;
@@ -56,9 +63,13 @@ function xTickDates(dates: string[]): string[] {
     cursor += step;
   }
   // only add last date if far enough from previous tick
-  const lastDate = dates[dates.length - 1]!;
-  if (ticks[ticks.length - 1] !== lastDate) {
-    const prevMs = new Date(ticks[ticks.length - 1]!).getTime();
+  const lastDate = dates[dates.length - 1];
+  if (!lastDate) return ticks;
+  const prevTick = ticks.at(-1);
+  if (!prevTick) {
+    ticks.push(lastDate);
+  } else if (prevTick !== lastDate) {
+    const prevMs = new Date(prevTick).getTime();
     const lastMs = new Date(lastDate).getTime();
     if (lastMs - prevMs >= step * 0.4) ticks.push(lastDate);
   }
@@ -70,7 +81,8 @@ function yTicks(maxStars: number): number[] {
   const step = niceStep(maxStars, 5);
   const ticks: number[] = [];
   for (let i = 0; i <= maxStars; i += step) ticks.push(i);
-  const last = ticks[ticks.length - 1]!;
+  const last = ticks.at(-1);
+  if (last === undefined) return ticks;
   // only add maxStars if there's enough gap from the last nice tick
   if (maxStars - last >= step * 0.4) ticks.push(maxStars);
   return ticks;
@@ -103,8 +115,10 @@ export function useSvgChart(
     const dates = allDates.value;
 
     // --- compute scales from real timestamps ---
-    const firstTs = dates.length > 0 ? new Date(dates[0]!).getTime() : 0;
-    const lastTs = dates.length > 0 ? new Date(dates[dates.length - 1]!).getTime() : 1;
+    const firstDate = dates[0];
+    const lastDate = dates.at(-1);
+    const firstTs = firstDate ? new Date(firstDate).getTime() : 0;
+    const lastTs = lastDate ? new Date(lastDate).getTime() : 1;
     const tsSpan = lastTs - firstTs || 1;
 
     const xForDate = (d: string): number => {
@@ -115,9 +129,7 @@ export function useSvgChart(
     const maxStars =
       repos.value.length > 0
         ? Math.max(
-            ...repos.value.map((r) =>
-              r.stars.length > 0 ? r.stars[r.stars.length - 1]!.count : 0,
-            ),
+            ...repos.value.map((r) => (r.stars.length > 0 ? (r.stars.at(-1)?.count ?? 0) : 0)),
           )
         : 0;
     const paddedMax = maxStars === 0 ? 10 : Math.ceil(maxStars * 1.1);
@@ -161,14 +173,17 @@ export function useSvgChart(
       const gap = 2;
 
       for (let ri = 0; ri < repoCount; ri++) {
-        const repo = repos.value[ri]!;
-        const color = COLORS[ri % COLORS.length]!;
+        const repo = repos.value[ri];
+        if (!repo) continue;
+        const color = COLORS[ri % COLORS.length];
+        if (!color) continue;
         // thin to ~14-day intervals
         let cursor = firstTs;
         const DAY14 = 14 * 86_400_000;
         const lastIdx = repo.stars.length - 1;
         for (let si = 0; si < repo.stars.length; si++) {
-          const point = repo.stars[si]!;
+          const point = repo.stars[si];
+          if (!point) continue;
           const t = new Date(point.date).getTime();
           if (t < cursor && si !== 0 && si !== lastIdx) continue;
           cursor = t + DAY14;
@@ -183,8 +198,10 @@ export function useSvgChart(
     } else {
       // line chart — polyline through all points, no dots, no per-point labels
       for (let ri = 0; ri < repos.value.length; ri++) {
-        const repo = repos.value[ri]!;
-        const color = COLORS[ri % COLORS.length]!;
+        const repo = repos.value[ri];
+        if (!repo) continue;
+        const color = COLORS[ri % COLORS.length];
+        if (!color) continue;
         if (repo.stars.length === 0) continue;
 
         const pts = repo.stars.map((p) => `${xForDate(p.date)},${yForCount(p.count)}`).join(" ");
@@ -195,8 +212,10 @@ export function useSvgChart(
     // --- legend (top-left) ---
     let legendX = MARGIN.left;
     for (let ri = 0; ri < repos.value.length; ri++) {
-      const repo = repos.value[ri]!;
-      const color = COLORS[ri % COLORS.length]!;
+      const repo = repos.value[ri];
+      if (!repo) continue;
+      const color = COLORS[ri % COLORS.length];
+      if (!color) continue;
       svgContent += `<line x1="${legendX}" y1="18" x2="${legendX + 20}" y2="18" stroke="${color}" stroke-width="2.5"/>`;
       svgContent += `<text x="${legendX + 26}" y="22" fill="rgba(255,255,255,0.87)" font-family="sans-serif" font-size="12">${repo.fullName}</text>`;
       legendX += repo.fullName.length * 7 + 60;

@@ -5,7 +5,10 @@ function parseRepo(fullName: string): { owner: string; repo: string } | null {
   const trimmed = fullName.trim();
   const match = trimmed.match(/^(?:https?:\/\/github\.com\/)?([^/]+)\/([^/]+?)(?:\.git)?$/);
   if (!match) return null;
-  return { owner: match[1]!, repo: match[2]! };
+  const owner = match[1];
+  const repo = match[2];
+  if (!owner || !repo) return null;
+  return { owner, repo };
 }
 
 export function useStarHistory(token: Ref<string>) {
@@ -49,8 +52,10 @@ export function useStarHistory(token: Ref<string>) {
       if (idx === -1) return false;
 
       const updated = [...repos.value];
+      const existing = updated[idx];
+      if (!existing) return false;
       updated[idx] = {
-        ...updated[idx]!,
+        ...existing,
         stars: data.stars,
         loading: false,
         partial: data.partial,
@@ -62,8 +67,10 @@ export function useStarHistory(token: Ref<string>) {
       if (idx === -1) return false;
 
       const updated = [...repos.value];
+      const existing = updated[idx];
+      if (!existing) return false;
       updated[idx] = {
-        ...updated[idx]!,
+        ...existing,
         loading: false,
         error: err instanceof Error ? err.message : "Unknown error",
       };

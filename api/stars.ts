@@ -14,7 +14,8 @@ export interface StarsResponse {
 export function extractGitHubStatus(err: unknown): number {
   const message = err instanceof Error ? err.message : String(err);
   const match = message.match(/^GitHub API (\d{3}):/);
-  return match ? Number.parseInt(match[1]!, 10) : 500;
+  const code = match?.[1];
+  return code ? Number.parseInt(code, 10) : 500;
 }
 
 async function fetchPage(
@@ -45,7 +46,8 @@ async function fetchPage(
 function getLastPage(linkHeader: string | null): number | null {
   if (!linkHeader) return null;
   const match = linkHeader.match(/&page=(\d+)>; rel="last"/);
-  return match ? Number.parseInt(match[1]!, 10) : null;
+  const pageNum = match?.[1];
+  return pageNum ? Number.parseInt(pageNum, 10) : null;
 }
 
 function aggregateByDate(entries: { starred_at: string }[]): StarDataPoint[] {
